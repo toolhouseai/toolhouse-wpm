@@ -4,7 +4,7 @@
  */
 
 import { GameRoom } from './game/gameRoom';
-import { handleRoomCreation } from './api/rooms';
+import { handleRoomCreation, handleJoinRoom } from './api/rooms';
 import { handleGetPassages } from './api/passages';
 
 export { GameRoom };
@@ -35,6 +35,11 @@ export default {
       return handleRoomCreation(request, env);
     }
 
+    if (pathname.match(/^\/api\/rooms\/[A-Z0-9]{6}$/) && request.method === 'GET') {
+      const roomId = pathname.split('/').pop() || '';
+      return handleJoinRoom(request, roomId, env);
+    }
+
     if (pathname === '/api/passages' && request.method === 'GET') {
       return handleGetPassages(request, env);
     }
@@ -43,7 +48,10 @@ export default {
       return handleGameRoomWebSocket(pathname, request, env);
     }
 
-    return new Response('Not Found', { status: 404 });
+    return new Response(
+      JSON.stringify({ error: 'Not Found', path: pathname }),
+      { status: 404, headers: { 'Content-Type': 'application/json' } }
+    );
   },
 };
 
@@ -57,7 +65,7 @@ async function handleGameRoomWebSocket(
 ): Promise<Response> {
   const roomId = pathname.split('/').pop();
 
-  if (!roomId) {
+  if (!roomId || !/^[A-Z0-9]{6}$/.test(roomId)) {
     return new Response('Invalid room ID', { status: 400 });
   }
 
