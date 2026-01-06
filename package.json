@@ -1,0 +1,26 @@
+{
+  "name": "toolhouse-wpm",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:worker && npm run build:web",
+    "build:worker": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=node --format=esm --external:cloudflare",
+    "build:web": "cd web && vite build",
+    "dev": "wrangler dev",
+    "dev:web": "cd web && vite",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "wrangler": "^3.80.0",
+    "@cloudflare/workers-types": "^4.20250108.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "esbuild": "^0.20.1",
+    "vitest": "^1.1.0",
+    "@vitest/ui": "^1.1.0",
+    "happy-dom": "^12.10.3"
+  }
+}
