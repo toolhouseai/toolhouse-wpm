@@ -39,6 +39,13 @@ export class GameRoom {
    * Handle WebSocket fetch requests
    */
   async fetch(request: Request): Promise<Response> {
+    // Initialize room if not set
+    if (!this.roomId) {
+      const url = new URL(request.url);
+      const pathParts = url.pathname.split('/');
+      this.roomId = pathParts[pathParts.length - 1];
+    }
+
     if (request.headers.get('Upgrade') === 'websocket') {
       return this.handleWebSocket(request);
     }
@@ -127,6 +134,22 @@ export class GameRoom {
       return;
     }
 
+    // Initialize room data from database on first player
+    if (this.players.size === 0 && this.env.DB) {
+      try {
+        const session = await this.env.DB.prepare(
+          `SELECT passage_id, leader_id FROM game_sessions WHERE room_id = ? LIMIT 1`
+        ).bind(this.roomId).first();
+
+        if (session) {
+          this.passageId = session.passage_id as string;
+          // Don't override leader, let first connected player be leader
+        }
+      } catch (error) {
+        console.error('Error loading room data:', error);
+      }
+    }
+
     const player: Player = {
       id: playerId,
       joinedAt: Date.now(),
@@ -205,6 +228,11 @@ export class GameRoom {
 
     // Save to database
     await this.saveGameResults(results);
+
+    // Schedule cleanup after 5 minutes to allow players to view results
+    setTimeout(() => {
+      this.cleanup();
+    }, 5 * 60 * 1000); // 5 minutes
   }
 
   /**
@@ -248,6 +276,12 @@ export class GameRoom {
   async saveGameResults(results: GameResult[]): Promise<void> {
     if (!this.env.DB) return;
 
+    // Don't save if required fields are missing
+    if (!this.roomId || !this.passageId || !this.leaderId || !this.startTime) {
+      console.warn('Skipping database save - missing required fields');
+      return;
+    }
+
     const sessionId = generateUUID();
 
     try {
@@ -261,7 +295,7 @@ export class GameRoom {
         this.passageId,
         this.leaderId,
         'completed',
-        new Date(this.startTime!).toISOString(),
+        new Date(this.startTime).toISOString(),
         new Date().toISOString(),
         new Date().toISOString(),
       ).run();
@@ -347,5 +381,28 @@ export class GameRoom {
    */
   private generatePlayerId(): string {
     return `player_${Math.random().toString(36).substring(2, 10)}`;
+  }
+
+  /**
+   * Cleanup room resources after game completion
+   * Closes all WebSocket connections and clears state
+   */
+  cleanup(): void {
+    // Close all WebSocket connections
+    for (const [playerId, ws] of this.connections.entries()) {
+      try {
+        ws.close(1000, 'Game completed');
+      } catch (error) {
+        console.error(`Error closing connection for ${playerId}:`, error);
+      }
+    }
+
+    // Clear all state
+    this.connections.clear();
+    this.players.clear();
+
+    console.log(`Room ${this.roomId} cleaned up after game completion`);
+
+    // Note: Durable Object will be evicted by Cloudflare after inactivity
   }
 }

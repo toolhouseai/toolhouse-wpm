@@ -70,7 +70,11 @@ export function useGameRoom({ roomId, wsUrl }: UseGameRoomOptions) {
 
     // Handle connection open
     ws.onOpen(() => {
-      setState(prev => ({ ...prev, connectionState: ConnectionState.Connected }));
+      setState(prev => ({
+        ...prev,
+        connectionState: ConnectionState.Connected,
+        error: null // Clear any previous errors on successful connection
+      }));
       // Send player_joined message
       ws.send(createMessage<any>('player_joined', { playerId: '' }));
     });

@@ -7,8 +7,8 @@ import { Button } from './common';
 import { useApi } from '../hooks/useApi';
 
 export interface HomeProps {
-  onCreateRoom: (roomId: string, wsUrl: string) => void;
-  onJoinRoom: (roomId: string, wsUrl: string) => void;
+  onCreateRoom: (roomId: string, wsUrl: string, passage: any) => void;
+  onJoinRoom: (roomId: string, wsUrl: string, passage: any) => void;
 }
 
 export const Home: React.FC<HomeProps> = ({ onCreateRoom, onJoinRoom }) => {
@@ -19,7 +19,7 @@ export const Home: React.FC<HomeProps> = ({ onCreateRoom, onJoinRoom }) => {
   const handleCreateRoom = async () => {
     const result = await createRoom();
     if (result) {
-      onCreateRoom(result.roomId, result.wsUrl);
+      onCreateRoom(result.roomId, result.wsUrl, result.passage);
     }
   };
 
@@ -34,7 +34,7 @@ export const Home: React.FC<HomeProps> = ({ onCreateRoom, onJoinRoom }) => {
 
     const result = await joinRoom(roomId);
     if (result) {
-      onJoinRoom(result.roomId, result.wsUrl);
+      onJoinRoom(result.roomId, result.wsUrl, result.passage);
     }
   };
 

@@ -38,33 +38,21 @@ function App() {
   /**
    * Handle room creation
    */
-  const handleCreateRoom = (newRoomId: string, newWsUrl: string) => {
+  const handleCreateRoom = (newRoomId: string, newWsUrl: string, newPassage: Passage) => {
     setRoomId(newRoomId);
     setWsUrl(newWsUrl);
+    setPassage(newPassage);
     setCurrentPage('waiting');
-    // Passage is fetched in the API response, set a dummy one for now
-    // In a real app, this would come from the createRoom API response
-    setPassage({
-      id: 'passage_001',
-      text: 'The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet.',
-      difficulty: 'easy',
-      wordCount: 19,
-    });
   };
 
   /**
    * Handle joining existing room
    */
-  const handleJoinRoom = (newRoomId: string, newWsUrl: string) => {
+  const handleJoinRoom = (newRoomId: string, newWsUrl: string, newPassage: Passage) => {
     setRoomId(newRoomId);
     setWsUrl(newWsUrl);
+    setPassage(newPassage);
     setCurrentPage('waiting');
-    setPassage({
-      id: 'passage_001',
-      text: 'The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet.',
-      difficulty: 'easy',
-      wordCount: 19,
-    });
   };
 
   /**
@@ -77,13 +65,20 @@ function App() {
   };
 
   /**
-   * Handle game end (when time runs out)
+   * Handle game state transitions
    */
   useEffect(() => {
+    // Transition from waiting to game when game starts (for non-leader players)
+    if (gameRoom.gameState === 'active' && currentPage === 'waiting') {
+      typing.reset();
+      setCurrentPage('game');
+    }
+
+    // Transition from game to results when game ends
     if (gameRoom.gameState === 'completed' && currentPage === 'game') {
       setCurrentPage('results');
     }
-  }, [gameRoom.gameState, currentPage]);
+  }, [gameRoom.gameState, currentPage, typing]);
 
   /**
    * Handle play again

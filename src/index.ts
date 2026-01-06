@@ -92,6 +92,8 @@ async function handleGameRoomWebSocket(
     return new Response('Invalid room ID', { status: 400 });
   }
 
-  const stub = env.GAME_ROOM.get(roomId);
+  // Get Durable Object ID from room name
+  const id = env.GAME_ROOM.idFromName(roomId);
+  const stub = env.GAME_ROOM.get(id);
   return stub.fetch(request);
 }
