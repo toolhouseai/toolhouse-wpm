@@ -3,6 +3,7 @@
  */
 
 import { SAMPLE_PASSAGES, getRandomPassage } from '../db/passages';
+import { createJsonResponse, createErrorResponse } from './utils';
 
 interface Env {
   DB: D1Database;
@@ -15,37 +16,13 @@ export async function handleGetPassages(request: Request, env: Env): Promise<Res
 
     if (action === 'random') {
       const passage = getRandomPassage();
-      return new Response(
-        JSON.stringify(passage),
-        {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-          },
-        }
-      );
+      return createJsonResponse(passage);
     }
 
     // Default: return all passages
-    return new Response(
-      JSON.stringify({ passages: SAMPLE_PASSAGES }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    return createJsonResponse({ passages: SAMPLE_PASSAGES });
   } catch (error) {
     console.error('Error fetching passages:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to fetch passages' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return createErrorResponse('Failed to fetch passages', 500);
   }
 }

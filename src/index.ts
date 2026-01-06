@@ -6,6 +6,7 @@
 import { GameRoom } from './game/gameRoom';
 import { handleRoomCreation, handleJoinRoom } from './api/rooms';
 import { handleGetPassages } from './api/passages';
+import { createJsonResponse } from './api/utils';
 
 export { GameRoom };
 
@@ -24,47 +25,35 @@ export default {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         },
       });
     }
 
     // Health check endpoint
     if (pathname === '/health') {
-      return new Response(
-        JSON.stringify({
-          status: 'healthy',
-          timestamp: new Date().toISOString(),
-          version: '1.0.0',
-          environment: env ? 'production' : 'development',
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return createJsonResponse({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        environment: env ? 'production' : 'development',
+      });
     }
 
     // Status endpoint
     if (pathname === '/status') {
-      return new Response(
-        JSON.stringify({
-          service: 'Toolhouse WPM',
-          status: 'operational',
-          timestamp: new Date().toISOString(),
-          version: '1.0.0',
-          components: {
-            api: 'operational',
-            websocket: 'operational',
-            database: 'operational',
-          },
-        }),
-        {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }
-      );
+      return createJsonResponse({
+        service: 'Toolhouse WPM',
+        status: 'operational',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0',
+        components: {
+          api: 'operational',
+          websocket: 'operational',
+          database: 'operational',
+        },
+      });
     }
 
     // Routes
@@ -85,10 +74,7 @@ export default {
       return handleGameRoomWebSocket(pathname, request, env);
     }
 
-    return new Response(
-      JSON.stringify({ error: 'Not Found', path: pathname }),
-      { status: 404, headers: { 'Content-Type': 'application/json' } }
-    );
+    return createJsonResponse({ error: 'Not Found', path: pathname }, 404);
   },
 };
 

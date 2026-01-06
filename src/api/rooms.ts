@@ -4,6 +4,7 @@
 
 import { generateRoomId, generateUUID } from '../game/utils';
 import { getRandomPassage } from '../db/passages';
+import { createJsonResponse, createErrorResponse } from './utils';
 
 interface Env {
   DB: D1Database;
@@ -30,35 +31,20 @@ export async function handleRoomCreation(request: Request, env: Env): Promise<Re
       ).run();
     }
 
-    return new Response(
-      JSON.stringify({
-        roomId,
-        sessionId,
-        passage: {
-          id: passage.id,
-          text: passage.text,
-          difficulty: passage.difficulty,
-          wordCount: passage.wordCount,
-        },
-        wsUrl: `ws://localhost:8787/ws/rooms/${roomId}`,
-      }),
-      {
-        status: 201,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    return createJsonResponse({
+      roomId,
+      sessionId,
+      passage: {
+        id: passage.id,
+        text: passage.text,
+        difficulty: passage.difficulty,
+        wordCount: passage.wordCount,
+      },
+      wsUrl: `ws://localhost:8787/ws/rooms/${roomId}`,
+    }, 201);
   } catch (error) {
     console.error('Error creating room:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to create room' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return createErrorResponse('Failed to create room', 500);
   }
 }
 
@@ -69,10 +55,7 @@ export async function handleJoinRoom(
 ): Promise<Response> {
   try {
     if (!/^[A-Z0-9]{6}$/.test(roomId)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid room ID format' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return createErrorResponse('Invalid room ID format', 400);
     }
 
     // Get session from database
@@ -86,45 +69,27 @@ export async function handleJoinRoom(
     }
 
     if (!session) {
-      return new Response(
-        JSON.stringify({ error: 'Room not found' }),
-        { status: 404, headers: { 'Content-Type': 'application/json' } }
-      );
+      return createErrorResponse('Room not found', 404);
     }
 
     // Get passage
     const passages = await import('../db/passages');
     const passage = passages.getPassageById(session.passage_id);
 
-    return new Response(
-      JSON.stringify({
-        roomId,
-        sessionId: session.id,
-        status: session.status,
-        passage: passage ? {
-          id: passage.id,
-          text: passage.text,
-          difficulty: passage.difficulty,
-          wordCount: passage.wordCount,
-        } : null,
-        wsUrl: `ws://localhost:8787/ws/rooms/${roomId}`,
-      }),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      }
-    );
+    return createJsonResponse({
+      roomId,
+      sessionId: session.id,
+      status: session.status,
+      passage: passage ? {
+        id: passage.id,
+        text: passage.text,
+        difficulty: passage.difficulty,
+        wordCount: passage.wordCount,
+      } : null,
+      wsUrl: `ws://localhost:8787/ws/rooms/${roomId}`,
+    });
   } catch (error) {
     console.error('Error joining room:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to join room' }),
-      {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }
-    );
+    return createErrorResponse('Failed to join room', 500);
   }
 }
