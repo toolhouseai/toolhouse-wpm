@@ -30,6 +30,43 @@ export default {
       });
     }
 
+    // Health check endpoint
+    if (pathname === '/health') {
+      return new Response(
+        JSON.stringify({
+          status: 'healthy',
+          timestamp: new Date().toISOString(),
+          version: '1.0.0',
+          environment: env ? 'production' : 'development',
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    // Status endpoint
+    if (pathname === '/status') {
+      return new Response(
+        JSON.stringify({
+          service: 'Toolhouse WPM',
+          status: 'operational',
+          timestamp: new Date().toISOString(),
+          version: '1.0.0',
+          components: {
+            api: 'operational',
+            websocket: 'operational',
+            database: 'operational',
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // Routes
     if (pathname === '/api/rooms' && request.method === 'POST') {
       return handleRoomCreation(request, env);

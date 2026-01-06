@@ -276,6 +276,304 @@ Tests are written before implementation (TDD approach) to ensure reliability.
 - Run `wrangler d1 execute wpm_game_db --file=./src/db/schema.sql` to reinitialize
 - Check D1 database ID in `wrangler.toml`
 
+## Deployment Guide
+
+### Phase 4: Production Deployment
+
+This section covers deploying Toolhouse WPM to production on Cloudflare.
+
+#### Prerequisites for Deployment
+
+- Cloudflare account (free or paid)
+- Domain registered (optional, can use Cloudflare free domain)
+- Git repository pushed to GitHub/GitLab
+- Environment variables configured
+
+#### Step 1: Configure Environment Variables
+
+Create `.env.production` in the root directory:
+
+```bash
+cp .env.example .env.production
+```
+
+Update with production values:
+
+```env
+# Backend (.env.production)
+D1_DATABASE_ID=your-prod-database-id
+D1_DATABASE_NAME=wpm_game_db_prod
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_API_TOKEN=your-api-token
+ENVIRONMENT=production
+```
+
+Create `web/.env.production` for frontend:
+
+```bash
+cp web/.env.example web/.env.production
+```
+
+```env
+# Frontend (web/.env.production)
+VITE_API_URL=https://your-domain.com
+VITE_WS_URL=wss://your-domain.com
+VITE_DEBUG=false
+```
+
+#### Step 2: Set Up Cloudflare D1 Database
+
+1. **Create production database:**
+
+```bash
+wrangler d1 create wpm_game_db_prod
+```
+
+2. **Note the database ID** and update `wrangler.toml`:
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "wpm_game_db_prod"
+database_id = "YOUR_DATABASE_ID"
+```
+
+3. **Initialize database schema:**
+
+```bash
+wrangler d1 execute wpm_game_db_prod --file=./src/db/schema.sql --remote
+```
+
+4. **Populate sample data (optional):**
+
+```bash
+wrangler d1 execute wpm_game_db_prod --command "INSERT INTO passages (id, text, difficulty, word_count) VALUES ('passage_001', 'The quick brown fox...', 'easy', 28)"
+```
+
+#### Step 3: Configure Cloudflare Workers
+
+Update `wrangler.toml` for production:
+
+```toml
+name = "toolhouse-wpm-prod"
+main = "src/index.ts"
+compatibility_date = "2024-12-12"
+
+# Production database binding
+[[d1_databases]]
+binding = "DB"
+database_name = "wpm_game_db_prod"
+database_id = "YOUR_PROD_DATABASE_ID"
+
+# Durable Objects for game sessions
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+script_name = "toolhouse-wpm-prod"
+
+# Routes for production domain
+[env.production]
+routes = [
+  { pattern = "api/*", zone_name = "your-domain.com" },
+  { pattern = "*.your-domain.com/*", zone_name = "your-domain.com" }
+]
+
+[build]
+command = "npm run build"
+```
+
+#### Step 4: Build and Deploy
+
+1. **Build both frontend and backend:**
+
+```bash
+npm run build
+cd web && npm run build && cd ..
+```
+
+2. **Deploy to Cloudflare:**
+
+```bash
+# Deploy with environment variables
+wrangler publish --env production
+```
+
+3. **Verify deployment:**
+
+```bash
+# Check worker status
+wrangler deployments list
+
+# Test API endpoint
+curl https://your-domain.com/api/passages
+```
+
+#### Step 5: Configure Domain & DNS
+
+1. **Point domain to Cloudflare:**
+   - Update your domain registrar's nameservers to Cloudflare's nameservers
+
+2. **Configure Cloudflare DNS:**
+   - Go to Cloudflare Dashboard → DNS
+   - Add DNS record for worker:
+     - Type: CNAME
+     - Name: your-domain
+     - Target: your-worker.workers.dev
+
+3. **Enable Cloudflare features:**
+   - SSL/TLS: Full (strict)
+   - Caching: Standard
+   - Enable Auto Minify (CSS, JS, HTML)
+
+#### Step 6: Database Migration (if upgrading from existing)
+
+For existing deployments, migrate data safely:
+
+```bash
+# Export existing data
+wrangler d1 execute wpm_game_db --command "SELECT * FROM game_results LIMIT 1000" > backup.json
+
+# Import to new database
+wrangler d1 execute wpm_game_db_prod --file=./import.sql --remote
+```
+
+#### Step 7: Health Checks & Monitoring
+
+Set up monitoring for your deployment:
+
+```bash
+# Monitor Durable Objects
+wrangler tail --env production
+
+# Check recent deployments
+wrangler deployments list
+```
+
+Create a simple health check endpoint:
+
+```typescript
+// In src/index.ts
+if (pathname === '/health') {
+  return new Response(JSON.stringify({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
+```
+
+#### Step 8: Enable Rate Limiting (Optional)
+
+Prevent abuse by adding rate limiting:
+
+```bash
+# In Cloudflare Dashboard
+# Security → Rate Limiting
+
+# Add rule:
+- Path: /api/rooms
+- Requests: 10 per minute per IP
+- Action: Block
+```
+
+#### Step 9: Setup Monitoring & Analytics
+
+1. **Enable Cloudflare Analytics:**
+   - Dashboard → Analytics
+
+2. **Monitor WebSocket connections:**
+   - Durable Objects → Inspector
+   - View real-time activity
+
+3. **Error tracking:**
+   - Set up error notifications in Cloudflare Workers settings
+
+#### Troubleshooting Deployment
+
+**"Worker script error"**
+- Check `wrangler logs` for errors
+- Verify TypeScript builds without errors: `npm run build`
+- Ensure all environment variables are set
+
+**"Database connection failed"**
+- Verify database ID in `wrangler.toml`
+- Check database exists: `wrangler d1 list`
+- Initialize schema: `wrangler d1 execute wpm_game_db_prod --file=./src/db/schema.sql --remote`
+
+**"WebSocket connection refused"**
+- Ensure Durable Objects are properly configured
+- Check domain DNS settings
+- Verify SSL/TLS is set to "Full (strict)"
+
+**"CORS errors"**
+- Verify CORS headers in Worker: `Access-Control-Allow-Origin: *`
+- Check frontend API URL matches deployed backend
+
+#### Rollback Procedure
+
+If deployment has issues:
+
+```bash
+# Rollback to previous version
+wrangler deployments list
+wrangler rollback --message "Rollback to stable version"
+```
+
+#### Production Checklist
+
+- [ ] Environment variables configured
+- [ ] D1 database created and initialized
+- [ ] Database schema applied
+- [ ] Durable Objects configured
+- [ ] Frontend built (`npm run build`)
+- [ ] Backend deployed (`wrangler publish`)
+- [ ] DNS configured correctly
+- [ ] SSL/TLS enabled
+- [ ] Health endpoint responding
+- [ ] WebSocket connections working
+- [ ] Error monitoring enabled
+- [ ] Rate limiting configured
+- [ ] Backups scheduled
+
+### Continuous Deployment (CI/CD)
+
+Set up automated deployments with GitHub Actions:
+
+```yaml
+# .github/workflows/deploy.yml
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd web && npm install && cd ..
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: wrangler publish --env production
+```
+
 ## Contributing
 
 Development happens on feature branches. Follow the architecture in `ARCHITECTURE.md` for any new features.
